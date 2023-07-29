@@ -21,18 +21,24 @@ const importZod = `import * as myzod from 'myzod'`;
 const anySchema = `definedNonNullAnySchema`;
 
 export const MyZodSchemaVisitor = (schema: GraphQLSchema, config: ValidationSchemaPluginConfig): SchemaVisitor => {
+  const importEnums: string[] = [];
   const importTypes: string[] = [];
   const enumDeclarations: string[] = [];
 
   return {
     buildImports: (): string[] => {
-      if (config.importFrom && importTypes.length > 0) {
-        return [
-          importZod,
-          `import ${config.useTypeImports ? 'type ' : ''}{ ${importTypes.join(', ')} } from '${config.importFrom}'`,
-        ];
+      const imports = [importZod];
+      if (config.importFrom) {
+        const declarations = config.useTypeImports ? importEnums : [...importEnums, ...importTypes];
+        const types = config.useTypeImports ? importTypes : [];
+        if (declarations.length > 0) {
+          imports.push(`import { ${declarations.join(', ')} } from '${config.importFrom}'`);
+        }
+        if (types.length > 0) {
+          imports.push(`import type { ${types.join(', ')} } from '${config.importFrom}'`);
+        }
       }
-      return [importZod];
+      return imports;
     },
     initialEmit: (): string =>
       '\n' +
@@ -111,24 +117,27 @@ export const MyZodSchemaVisitor = (schema: GraphQLSchema, config: ValidationSche
       leave: (node: EnumTypeDefinitionNode) => {
         const visitor = new Visitor('both', schema, config);
         const enumname = visitor.convertName(node.name.value);
-        importTypes.push(enumname);
-        // z.enum are basically myzod.literals
         // hoist enum declarations
-        enumDeclarations.push(
-          config.enumsAsTypes
-            ? new DeclarationBlock({})
-                .export()
-                .asKind('type')
-                .withName(`${enumname}Schema`)
-                .withContent(
-                  `myzod.literals(${node.values?.map(enumOption => `'${enumOption.name.value}'`).join(', ')})`
-                ).string
-            : new DeclarationBlock({})
-                .export()
-                .asKind('const')
-                .withName(`${enumname}Schema`)
-                .withContent(`myzod.enum(${enumname})`).string
-        );
+        if (config.enumsAsTypes) {
+          // z.enum are basically myzod.literals
+          enumDeclarations.push(
+            new DeclarationBlock({})
+              .export()
+              .asKind('type')
+              .withName(`${enumname}Schema`)
+              .withContent(`myzod.literals(${node.values?.map(enumOption => `'${enumOption.name.value}'`).join(', ')})`)
+              .string
+          );
+        } else {
+          enumDeclarations.push(
+            new DeclarationBlock({})
+              .export()
+              .asKind('const')
+              .withName(`${enumname}Schema`)
+              .withContent(`myzod.enum(${enumname})`).string
+          );
+          importEnums.push(enumname);
+        }
       },
     },
     UnionTypeDefinition: {

@@ -206,6 +206,10 @@ describe('yup', () => {
 
   it('with importFrom', async () => {
     const schema = buildSchema(/* GraphQL */ `
+      enum PageType {
+        PUBLIC
+        BASIC_AUTH
+      }
       input Say {
         phrase: String!
       }
@@ -218,12 +222,16 @@ describe('yup', () => {
       },
       {}
     );
-    expect(result.prepend).toContain("import { Say } from './types'");
+    expect(result.prepend).toContain("import { PageType, Say } from './types'");
     expect(result.content).toContain('phrase: yup.string().defined()');
   });
 
   it('with importFrom & useTypeImports', async () => {
     const schema = buildSchema(/* GraphQL */ `
+      enum PageType {
+        PUBLIC
+        BASIC_AUTH
+      }
       input Say {
         phrase: String!
       }
@@ -237,6 +245,7 @@ describe('yup', () => {
       },
       {}
     );
+    expect(result.prepend).toContain("import { PageType } from './types'");
     expect(result.prepend).toContain("import type { Say } from './types'");
     expect(result.content).toContain('phrase: yup.string().defined()');
   });
