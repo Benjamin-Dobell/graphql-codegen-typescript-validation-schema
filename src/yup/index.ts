@@ -20,18 +20,24 @@ import { isInput, isListType, isNamedType, isNonNullType, ObjectTypeDefinitionBu
 const importYup = `import * as yup from 'yup'`;
 
 export const YupSchemaVisitor = (schema: GraphQLSchema, config: ValidationSchemaPluginConfig): SchemaVisitor => {
+  const importEnums: string[] = [];
   const importTypes: string[] = [];
   const enumDeclarations: string[] = [];
 
   return {
     buildImports: (): string[] => {
-      if (config.importFrom && importTypes.length > 0) {
-        return [
-          importYup,
-          `import ${config.useTypeImports ? 'type ' : ''}{ ${importTypes.join(', ')} } from '${config.importFrom}'`,
-        ];
+      const imports = [importYup];
+      if (config.importFrom) {
+        const declarations = config.useTypeImports ? importEnums : [...importTypes, ...importEnums];
+        const types = config.useTypeImports ? importTypes : [];
+        if (declarations.length > 0) {
+          imports.push(`import { ${declarations.join(', ')} } from '${config.importFrom}'`);
+        }
+        if (types.length > 0) {
+          imports.push(`import type { ${types.join(', ')} } from '${config.importFrom}'`);
+        }
       }
-      return [importYup];
+      return imports;
     },
     initialEmit: (): string => {
       if (!config.withObjectType) return '\n' + enumDeclarations.join('\n');
@@ -131,7 +137,7 @@ export const YupSchemaVisitor = (schema: GraphQLSchema, config: ValidationSchema
       leave: (node: EnumTypeDefinitionNode) => {
         const visitor = new Visitor('both', schema, config);
         const enumname = visitor.convertName(node.name.value);
-        importTypes.push(enumname);
+        importEnums.push(enumname);
 
         // hoise enum declarations
         if (config.enumsAsTypes) {

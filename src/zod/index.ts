@@ -21,18 +21,24 @@ const importZod = `import { z } from 'zod'`;
 const anySchema = `definedNonNullAnySchema`;
 
 export const ZodSchemaVisitor = (schema: GraphQLSchema, config: ValidationSchemaPluginConfig): SchemaVisitor => {
+  const importEnums: string[] = [];
   const importTypes: string[] = [];
   const enumDeclarations: string[] = [];
 
   return {
     buildImports: (): string[] => {
-      if (config.importFrom && importTypes.length > 0) {
-        return [
-          importZod,
-          `import ${config.useTypeImports ? 'type ' : ''}{ ${importTypes.join(', ')} } from '${config.importFrom}'`,
-        ];
+      const imports = [importZod];
+      if (config.importFrom) {
+        const declarations = config.useTypeImports ? importEnums : [...importTypes, ...importEnums];
+        const types = config.useTypeImports ? importTypes : [];
+        if (declarations.length > 0) {
+          imports.push(`import { ${declarations.join(', ')} } from '${config.importFrom}'`);
+        }
+        if (types.length > 0) {
+          imports.push(`import type { ${types.join(', ')} } from '${config.importFrom}'`);
+        }
       }
-      return [importZod];
+      return imports;
     },
     initialEmit: (): string =>
       '\n' +
@@ -124,7 +130,7 @@ export const ZodSchemaVisitor = (schema: GraphQLSchema, config: ValidationSchema
       leave: (node: EnumTypeDefinitionNode) => {
         const visitor = new Visitor('both', schema, config);
         const enumname = visitor.convertName(node.name.value);
-        importTypes.push(enumname);
+        importEnums.push(enumname);
 
         // hoist enum declarations
         enumDeclarations.push(
